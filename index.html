@@ -281,15 +281,7 @@
   </div>
   <div class="topbar-right">
     <span class="time" id="updateTime">—</span>
-    <select class="tz-select" onchange="onTZChange(this.value)" title="Timezone">
-      <option value="">Auto</option>
-      <option value="America/Lima">Lima (UTC-5)</option>
-      <option value="Europe/Madrid">Madrid</option>
-      <option value="Asia/Singapore">Singapore</option>
-      <option value="Asia/Kolkata">India</option>
-      <option value="Asia/Tokyo">Tokyo</option>
-      <option value="UTC">UTC</option>
-    </select>
+    <select id="tzSelect" class="tz-select" onchange="onTZChange(this.value)" title="Timezone"></select>
     <button class="refresh-btn" onclick="fetchAll()">↻ REFRESH</button>
   </div>
 </div>
@@ -328,6 +320,38 @@ function fmtVol(v) {
   if (v >= 1e6) return (v/1e6).toFixed(1) + "M";
   if (v >= 1e3) return (v/1e3).toFixed(1) + "K";
   return v.toFixed(0);
+}
+
+const TZ_CONFIG = [
+  { label: "Auto",      tz: "" },
+  { label: "Lima",      tz: "America/Lima" },
+  { label: "Madrid",    tz: "Europe/Madrid" },
+  { label: "Singapore", tz: "Asia/Singapore" },
+  { label: "India",     tz: "Asia/Kolkata" },
+  { label: "Tokyo",     tz: "Asia/Tokyo" },
+  { label: "UTC",       tz: "UTC" },
+];
+
+function getOffsetStr(tz) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: tz, timeZoneName: "shortOffset",
+  }).formatToParts(new Date());
+  return (parts.find(p => p.type === "timeZoneName")?.value || "").replace("GMT", "UTC");
+}
+
+function buildTZSelect() {
+  const sel = document.getElementById("tzSelect");
+  TZ_CONFIG.forEach(({ label, tz }) => {
+    const opt = document.createElement("option");
+    opt.value = tz;
+    opt.textContent = tz ? `${label} (${getOffsetStr(tz)})` : label;
+    sel.appendChild(opt);
+  });
+}
+
+function updateClock() {
+  document.getElementById("updateTime").textContent =
+    new Date().toLocaleTimeString("en", { timeZone: selectedTZ, hour: "2-digit", minute: "2-digit", second: "2-digit" });
 }
 
 function getDateParts(ts) {
@@ -714,8 +738,7 @@ async function fetchAll() {
 
     dot.classList.remove("loading");
     dot.classList.remove("error");
-    document.getElementById("updateTime").textContent =
-      new Date().toLocaleTimeString("en", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    updateClock();
 
     // Hide loading overlay
     document.getElementById("loadingOverlay").classList.add("hidden");
@@ -736,6 +759,7 @@ async function fetchAll() {
 function onTZChange(val) {
   selectedTZ = val || Intl.DateTimeFormat().resolvedOptions().timeZone;
   COINS.forEach(drawChart);
+  updateClock();
 }
 
 // --- Expand panel ---
@@ -766,6 +790,7 @@ window.addEventListener("resize", () => {
 });
 
 // --- Init ---
+buildTZSelect();
 fetchAll();
 setInterval(fetchAll, 5000);
 </script>
