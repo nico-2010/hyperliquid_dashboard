@@ -255,6 +255,7 @@
 
 <script>
 const COINS = ["BTC", "ETH", "SOL", "HYPE"];
+const DISPLAY = { BTC: "BTC-USDC", ETH: "ETH-USDC", SOL: "SOL-USDC", HYPE: "HYPE-USDC" };
 const API = "https://api.hyperliquid.xyz/info";
 const data = {};
 const canvases = {};
@@ -292,7 +293,7 @@ COINS.forEach(coin => {
   panel.className = "panel";
   panel.innerHTML = `
     <div class="panel-header">
-      <span class="coin-name">${coin}</span>
+      <span class="coin-name">${DISPLAY[coin]}</span>
       <span class="coin-price" id="price-${coin}">—</span>
       <span class="coin-change up" id="change-${coin}">▲ 0.00%</span>
       <span class="coin-meta">1H · Hyperliquid</span>
