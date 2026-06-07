@@ -13,7 +13,7 @@
     --bg: #1a1f2e;
     --panel: #1a1f2e;
     --border: #252c3d;
-    --grid: rgba(255,255,255,0.05);
+    --grid: rgba(255,255,255,0.1);
     --text: #525c6e;
     --text-mid: #8893a4;
     --text-bright: #c8d1dc;
@@ -361,7 +361,7 @@ function drawChart(coin) {
   // Colors
   const COL = {
     panel: "#1a1f2e",
-    grid: "rgba(255,255,255,0.05)",
+    grid: "rgba(255,255,255,0.1)",
     text: "#525c6e",
     green: "#0ecb81",
     red: "#f6465d",
@@ -425,7 +425,7 @@ function drawChart(coin) {
     ctx.fillText(fmtAxis(p, coin), w - 5, y);
   }
 
-  // Time labels
+  // Time labels + vertical grid lines
   const labelEvery = Math.max(1, Math.floor(candles.length / 5));
   ctx.textAlign = "center";
   ctx.textBaseline = "top";
@@ -433,7 +433,13 @@ function drawChart(coin) {
   ctx.font = "9px 'JetBrains Mono', monospace";
 
   for (let i = Math.floor(labelEvery / 2); i < candles.length; i += labelEvery) {
-    const x = chartL + (i + 0.5) * spacing;
+    const x = Math.round(chartL + (i + 0.5) * spacing) + 0.5;
+    ctx.strokeStyle = COL.grid;
+    ctx.lineWidth = 0.5;
+    ctx.beginPath();
+    ctx.moveTo(x, chartT);
+    ctx.lineTo(x, volB);
+    ctx.stroke();
     const d = new Date(candles[i].t);
     const mo = d.toLocaleString("en", { month: "short" });
     const day = d.getDate();
