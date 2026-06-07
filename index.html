@@ -789,10 +789,74 @@ window.addEventListener("resize", () => {
   resizeTimer = setTimeout(() => COINS.forEach(drawChart), 80);
 });
 
+// --- WebSocket ---
+let ws = null;
+let wsReconnects = 0;
+let wsFallback = false;
+
+function connectWS() {
+  if (ws) { ws.onclose = null; ws.close(); }
+  ws = new WebSocket("wss://api.hyperliquid.xyz/ws");
+  const dot = document.getElementById("statusDot");
+  dot.className = "dot loading";
+
+  ws.onopen = () => {
+    wsReconnects = 0;
+    wsFallback = false;
+    dot.className = "dot";
+    COINS.forEach(coin =>
+      ws.send(JSON.stringify({
+        method: "subscribe",
+        subscription: { type: "candle", coin, interval: "1h" },
+      }))
+    );
+  };
+
+  ws.onmessage = ev => {
+    try {
+      const msg = JSON.parse(ev.data);
+      if (msg.channel !== "candle" || !msg.data) return;
+      const d = msg.data;
+      const coin = d.s;
+      if (!data[coin] || !data[coin].length) return;
+      const candle = {
+        t: d.t,
+        o: parseFloat(d.o),
+        h: parseFloat(d.h),
+        l: parseFloat(d.l),
+        c: parseFloat(d.c),
+        v: parseFloat(d.v),
+      };
+      const arr = data[coin];
+      if (candle.t === arr[arr.length - 1].t) {
+        arr[arr.length - 1] = candle;
+      } else if (candle.t > arr[arr.length - 1].t) {
+        arr.push(candle);
+      }
+      drawChart(coin);
+    } catch(e) {}
+  };
+
+  ws.onerror = () => ws.close();
+
+  ws.onclose = () => {
+    wsReconnects++;
+    if (wsReconnects >= 5) {
+      wsFallback = true;
+      document.getElementById("statusDot").className = "dot error";
+      return;
+    }
+    document.getElementById("statusDot").className = "dot loading";
+    setTimeout(connectWS, Math.min(1000 * Math.pow(2, wsReconnects), 16000));
+  };
+}
+
 // --- Init ---
 buildTZSelect();
-fetchAll();
-setInterval(fetchAll, 5000);
+fetchAll().then(connectWS);
+setInterval(() => { if (wsFallback) fetchAll(); }, 5000); // REST fallback if WS dies
+setInterval(fetchAll, 5 * 60 * 1000);                    // full window refresh every 5 min
+setInterval(updateClock, 1000);                           // clock ticks every second
 </script>
 </body>
 </html>
