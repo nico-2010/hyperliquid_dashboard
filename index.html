@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hyperliquid Dashboard</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg: #06080d;
+    --panel: #0a0e17;
+    --border: #141c2b;
+    --grid: rgba(20,28,43,0.7);
+    --text: #525c6e;
+    --text-mid: #8893a4;
+    --text-bright: #c8d1dc;
+    --white: #e8edf4;
+    --green: #0ecb81;
+    --red: #f6465d;
+    --green-vol: rgba(14,203,129,0.2);
+    --red-vol: rgba(246,70,93,0.2);
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--white);
+    font-family: 'JetBrains Mono', 'SF Mono', 'Cascadia Code', monospace;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    user-select: none;
+  }
+
+  .topbar {
+    height: 38px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 14px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .topbar-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--green);
+    box-shadow: 0 0 6px rgba(14,203,129,0.4);
+  }
+
+  .dot.error { background: var(--red); box-shadow: 0 0 6px rgba(246,70,93,0.4); }
+  .dot.loading { animation: pulse 1s ease-in-out infinite; }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 0.3; }
+    50% { opacity: 1; }
+  }
+
+  .brand {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    color: var(--text-bright);
+  }
+
+  .sub {
+    font-size: 10px;
+    color: var(--text);
+  }
+
+  .topbar-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .time {
+    font-size: 10px;
+    color: var(--text);
+  }
+
+  .refresh-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-mid);
+    padding: 3px 10px;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 10px;
+    font-family: inherit;
+    transition: border-color 0.2s, color 0.2s;
+  }
+
+  .refresh-btn:hover {
+    border-color: var(--text-mid);
+    color: var(--white);
+  }
+
+  .grid {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    gap: 1px;
+    background: var(--border);
+    min-height: 0;
+  }
+
+  .panel {
+    background: var(--panel);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    position: relative;
+  }
+
+  .panel-header {
+    padding: 10px 12px 2px;
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    flex-shrink: 0;
+    z-index: 1;
+    flex-wrap: wrap;
+  }
+
+  .coin-name {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--white);
+    letter-spacing: 0.02em;
+  }
+
+  .coin-price {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--white);
+  }
+
+  .coin-change {
+    font-size: 11px;
+    font-weight: 500;
+  }
+
+  .coin-change.up { color: var(--green); }
+  .coin-change.down { color: var(--red); }
+
+  .coin-meta {
+    font-size: 10px;
+    color: var(--text);
+    margin-left: auto;
+  }
+
+  .chart-container {
+    flex: 1;
+    min-height: 0;
+    position: relative;
+  }
+
+  .chart-container canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+
+  /* Crosshair info */
+  .crosshair-info {
+    position: absolute;
+    top: 32px;
+    left: 12px;
+    font-size: 10px;
+    color: var(--text-mid);
+    z-index: 2;
+    pointer-events: none;
+    display: none;
+    gap: 8px;
+  }
+
+  .crosshair-info.visible { display: flex; }
+  .crosshair-info .ci-o::before { content: "O "; color: var(--text); }
+  .crosshair-info .ci-h::before { content: "H "; color: var(--text); }
+  .crosshair-info .ci-l::before { content: "L "; color: var(--text); }
+  .crosshair-info .ci-c::before { content: "C "; color: var(--text); }
+
+  /* Loading overlay */
+  .loading-overlay {
+    position: fixed;
+    inset: 0;
+    background: var(--bg);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    z-index: 100;
+    transition: opacity 0.4s;
+  }
+
+  .loading-overlay.hidden {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .loading-dots {
+    display: flex;
+    gap: 6px;
+  }
+
+  .loading-dots span {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--green);
+    animation: pulse 1.2s ease-in-out infinite;
+  }
+
+  .loading-dots span:nth-child(2) { animation-delay: 0.2s; }
+  .loading-dots span:nth-child(3) { animation-delay: 0.4s; }
+
+  .loading-text {
+    color: var(--text-mid);
+    font-size: 13px;
+  }
+</style>
+</head>
+<body>
+
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="loading-dots"><span></span><span></span><span></span></div>
+  <div class="loading-text">Connecting to Hyperliquid…</div>
+</div>
+
+<div class="topbar">
+  <div class="topbar-left">
+    <div class="dot loading" id="statusDot"></div>
+    <span class="brand">HYPERLIQUID</span>
+    <span class="sub">PERPS · 1H CANDLES</span>
+  </div>
+  <div class="topbar-right">
+    <span class="time" id="updateTime">—</span>
+    <button class="refresh-btn" onclick="fetchAll()">↻ REFRESH</button>
+  </div>
+</div>
+
+<div class="grid" id="grid"></div>
+
+<script>
+const COINS = ["BTC", "ETH", "SOL", "HYPE"];
+const API = "https://api.hyperliquid.xyz/info";
+const data = {};
+const canvases = {};
+const crosshairInfos = {};
+const panels = {};
+
+// --- Formatting ---
+function fmtPrice(p, coin) {
+  if (p == null) return "—";
+  if (coin === "HYPE") return p < 1 ? p.toFixed(4) : p < 100 ? p.toFixed(3) : p.toFixed(2);
+  if (coin === "SOL") return p < 10 ? p.toFixed(3) : p.toFixed(2);
+  if (coin === "ETH") return p < 100 ? p.toFixed(2) : p.toFixed(1);
+  return p >= 1000 ? p.toLocaleString("en-US", { maximumFractionDigits: 0 }) : p.toFixed(2);
+}
+
+function fmtAxis(p, coin) {
+  if (coin === "BTC") return p >= 1000 ? (p/1000).toFixed(1) + "k" : p.toFixed(0);
+  if (coin === "ETH") return p.toFixed(0);
+  if (coin === "SOL") return p.toFixed(1);
+  if (coin === "HYPE") return p < 1 ? p.toFixed(3) : p.toFixed(2);
+  return p.toFixed(2);
+}
+
+function fmtVol(v) {
+  if (v >= 1e6) return (v/1e6).toFixed(1) + "M";
+  if (v >= 1e3) return (v/1e3).toFixed(1) + "K";
+  return v.toFixed(0);
+}
+
+// --- Build DOM ---
+const grid = document.getElementById("grid");
+
+COINS.forEach(coin => {
+  const panel = document.createElement("div");
+  panel.className = "panel";
+  panel.innerHTML = `
+    <div class="panel-header">
+      <span class="coin-name">${coin}</span>
+      <span class="coin-price" id="price-${coin}">—</span>
+      <span class="coin-change up" id="change-${coin}">▲ 0.00%</span>
+      <span class="coin-meta">1H · Hyperliquid</span>
+    </div>
+    <div class="crosshair-info" id="ci-${coin}">
+      <span class="ci-o" id="ci-o-${coin}"></span>
+      <span class="ci-h" id="ci-h-${coin}"></span>
+      <span class="ci-l" id="ci-l-${coin}"></span>
+      <span class="ci-c" id="ci-c-${coin}"></span>
+    </div>
+    <div class="chart-container" id="cc-${coin}">
+      <canvas id="cv-${coin}"></canvas>
+    </div>
+  `;
+  grid.appendChild(panel);
+  panels[coin] = panel;
+
+  const container = panel.querySelector(`#cc-${coin}`);
+  const canvas = panel.querySelector(`#cv-${coin}`);
+  canvases[coin] = { canvas, container };
+  crosshairInfos[coin] = {
+    el: panel.querySelector(`#ci-${coin}`),
+    o: panel.querySelector(`#ci-o-${coin}`),
+    h: panel.querySelector(`#ci-h-${coin}`),
+    l: panel.querySelector(`#ci-l-${coin}`),
+    c: panel.querySelector(`#ci-c-${coin}`),
+  };
+
+  // Mouse events for crosshair
+  container.addEventListener("mousemove", e => onMouseMove(coin, e));
+  container.addEventListener("mouseleave", () => onMouseLeave(coin));
+});
+
+// --- Chart state ---
+const chartLayouts = {};
+const hoverIndex = {};
+
+function getLayout(coin) {
+  const { canvas, container } = canvases[coin];
+  const rect = container.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  const w = rect.width;
+  const h = rect.height;
+  return { w, h, dpr };
+}
+
+// --- Drawing ---
+function drawChart(coin) {
+  const candles = data[coin];
+  if (!candles || candles.length === 0) return;
+
+  const { canvas, container } = canvases[coin];
+  const rect = container.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  const w = rect.width;
+  const h = rect.height;
+  if (w === 0 || h === 0) return;
+
+  canvas.width = w * dpr;
+  canvas.height = h * dpr;
+
+  const ctx = canvas.getContext("2d");
+  ctx.scale(dpr, dpr);
+
+  // Colors
+  const COL = {
+    panel: "#0a0e17",
+    grid: "rgba(20,28,43,0.7)",
+    text: "#525c6e",
+    green: "#0ecb81",
+    red: "#f6465d",
+    greenVol: "rgba(14,203,129,0.2)",
+    redVol: "rgba(246,70,93,0.2)",
+    crosshair: "rgba(136,147,164,0.35)",
+  };
+
+  ctx.fillStyle = COL.panel;
+  ctx.fillRect(0, 0, w, h);
+
+  const pL = 8, pR = 60, pT = 6, pB = 20;
+  const volFrac = 0.16;
+
+  const chartL = pL, chartR = w - pR;
+  const chartT = pT;
+  const totalH = h - pT - pB;
+  const chartH = totalH * (1 - volFrac);
+  const chartB = chartT + chartH;
+  const volT = chartB + 3;
+  const volB = h - pB;
+  const volH = volB - volT;
+  const chartW = chartR - chartL;
+
+  // Ranges
+  let pMin = Infinity, pMax = -Infinity;
+  let maxVol = 0;
+  for (const c of candles) {
+    if (c.h > pMax) pMax = c.h;
+    if (c.l < pMin) pMin = c.l;
+    if (c.v > maxVol) maxVol = c.v;
+  }
+  const pad = (pMax - pMin) * 0.06 || 1;
+  pMin -= pad;
+  pMax += pad;
+  if (maxVol === 0) maxVol = 1;
+
+  const yOf = p => chartT + (1 - (p - pMin) / (pMax - pMin)) * chartH;
+  const spacing = chartW / candles.length;
+  const cw = Math.max(1, Math.min(spacing * 0.65, 14));
+
+  // Store layout for crosshair hit-testing
+  chartLayouts[coin] = { chartL, chartR, chartT, chartB, volT, volB, spacing, candles, pMin, pMax, yOf, w, h, pL, pR, pT, pB, volH, maxVol, cw };
+
+  // Grid lines
+  const nGrid = 4;
+  ctx.textAlign = "right";
+  ctx.textBaseline = "middle";
+  ctx.font = "10px 'JetBrains Mono', monospace";
+
+  for (let i = 0; i <= nGrid; i++) {
+    const p = pMin + (pMax - pMin) * (i / nGrid);
+    const y = Math.round(yOf(p)) + 0.5;
+    ctx.strokeStyle = COL.grid;
+    ctx.lineWidth = 0.5;
+    ctx.beginPath();
+    ctx.moveTo(chartL, y);
+    ctx.lineTo(chartR, y);
+    ctx.stroke();
+    ctx.fillStyle = COL.text;
+    ctx.fillText(fmtAxis(p, coin), w - 5, y);
+  }
+
+  // Time labels
+  const labelEvery = Math.max(1, Math.floor(candles.length / 5));
+  ctx.textAlign = "center";
+  ctx.textBaseline = "top";
+  ctx.fillStyle = COL.text;
+  ctx.font = "9px 'JetBrains Mono', monospace";
+
+  for (let i = Math.floor(labelEvery / 2); i < candles.length; i += labelEvery) {
+    const x = chartL + (i + 0.5) * spacing;
+    const d = new Date(candles[i].t);
+    const mo = d.toLocaleString("en", { month: "short" });
+    const day = d.getDate();
+    ctx.fillText(`${mo} ${day}`, x, h - pB + 5);
+  }
+
+  // Candles
+  for (let i = 0; i < candles.length; i++) {
+    const c = candles[i];
+    const x = chartL + (i + 0.5) * spacing;
+    const up = c.c >= c.o;
+    const color = up ? COL.green : COL.red;
+
+    // Wick
+    ctx.strokeStyle = color;
+    ctx.lineWidth = cw < 3 ? 0.8 : 1;
+    ctx.beginPath();
+    ctx.moveTo(Math.round(x) + 0.5, yOf(c.h));
+    ctx.lineTo(Math.round(x) + 0.5, yOf(c.l));
+    ctx.stroke();
+
+    // Body
+    const bTop = yOf(Math.max(c.o, c.c));
+    const bBot = yOf(Math.min(c.o, c.c));
+    const bH = Math.max(1, bBot - bTop);
+    ctx.fillStyle = color;
+    ctx.fillRect(Math.round(x - cw/2), bTop, Math.round(cw), bH);
+
+    // Volume
+    const vh = (c.v / maxVol) * volH;
+    ctx.fillStyle = up ? COL.greenVol : COL.redVol;
+    ctx.fillRect(Math.round(x - cw/2), volB - vh, Math.round(cw), vh);
+  }
+
+  // Current price line
+  const last = candles[candles.length - 1];
+  if (last) {
+    const yLast = yOf(last.c);
+    const up = last.c >= last.o;
+    ctx.strokeStyle = up ? COL.green : COL.red;
+    ctx.lineWidth = 0.7;
+    ctx.setLineDash([3, 3]);
+    ctx.beginPath();
+    ctx.moveTo(chartL, yLast);
+    ctx.lineTo(chartR, yLast);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Price tag
+    const tagW = pR - 6;
+    const tagH = 16;
+    const tagX = chartR + 3;
+    const tagY = yLast - tagH/2;
+    ctx.fillStyle = up ? COL.green : COL.red;
+    ctx.beginPath();
+    ctx.roundRect(tagX, tagY, tagW, tagH, 2);
+    ctx.fill();
+    ctx.fillStyle = "#fff";
+    ctx.font = "bold 9.5px 'JetBrains Mono', monospace";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(fmtAxis(last.c, coin), tagX + tagW/2, yLast);
+  }
+
+  // Crosshair
+  const hi = hoverIndex[coin];
+  if (hi != null && hi >= 0 && hi < candles.length) {
+    const hc = candles[hi];
+    const x = Math.round(chartL + (hi + 0.5) * spacing) + 0.5;
+
+    ctx.strokeStyle = COL.crosshair;
+    ctx.lineWidth = 0.5;
+    ctx.setLineDash([2, 2]);
+
+    // Vertical line
+    ctx.beginPath();
+    ctx.moveTo(x, chartT);
+    ctx.lineTo(x, volB);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Highlight candle body
+    const up = hc.c >= hc.o;
+    ctx.strokeStyle = up ? COL.green : COL.red;
+    ctx.lineWidth = 1.5;
+    const bTop = yOf(Math.max(hc.o, hc.c));
+    const bBot = yOf(Math.min(hc.o, hc.c));
+    const bH = Math.max(1, bBot - bTop);
+    ctx.strokeRect(Math.round(x - 0.5 - cw/2) - 1, bTop - 1, Math.round(cw) + 2, bH + 2);
+  }
+
+  // Update header
+  document.getElementById(`price-${coin}`).textContent = last ? fmtPrice(last.c, coin) : "—";
+  const first = candles[0];
+  const change = last && first ? ((last.c - first.o) / first.o * 100) : 0;
+  const isUp = change >= 0;
+  const changeEl = document.getElementById(`change-${coin}`);
+  changeEl.textContent = (isUp ? "▲ +" : "▼ ") + Math.abs(change).toFixed(2) + "%";
+  changeEl.className = "coin-change " + (isUp ? "up" : "down");
+}
+
+// --- Crosshair ---
+function onMouseMove(coin, e) {
+  const layout = chartLayouts[coin];
+  if (!layout) return;
+  const rect = canvases[coin].container.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const idx = Math.floor((mx - layout.chartL) / layout.spacing);
+  if (idx < 0 || idx >= layout.candles.length) {
+    onMouseLeave(coin);
+    return;
+  }
+  hoverIndex[coin] = idx;
+  drawChart(coin);
+
+  const c = layout.candles[idx];
+  const ci = crosshairInfos[coin];
+  ci.el.classList.add("visible");
+  ci.o.textContent = fmtPrice(c.o, coin);
+  ci.h.textContent = fmtPrice(c.h, coin);
+  ci.l.textContent = fmtPrice(c.l, coin);
+  ci.c.textContent = fmtPrice(c.c, coin);
+}
+
+function onMouseLeave(coin) {
+  hoverIndex[coin] = null;
+  drawChart(coin);
+  crosshairInfos[coin].el.classList.remove("visible");
+}
+
+// --- Fetch ---
+async function fetchAll() {
+  const dot = document.getElementById("statusDot");
+  dot.classList.add("loading");
+
+  try {
+    const now = Date.now();
+    const start = now - (5 * 24 * 60 * 60 * 1000);
+
+    const results = await Promise.allSettled(
+      COINS.map(coin =>
+        fetch(API, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            type: "candleSnapshot",
+            req: { coin, interval: "1h", startTime: start, endTime: now },
+          }),
+        }).then(r => r.json())
+      )
+    );
+
+    COINS.forEach((coin, i) => {
+      const res = results[i];
+      if (res.status === "fulfilled" && Array.isArray(res.value)) {
+        data[coin] = res.value.map(c => ({
+          t: c.t,
+          o: parseFloat(c.o),
+          h: parseFloat(c.h),
+          l: parseFloat(c.l),
+          c: parseFloat(c.c),
+          v: parseFloat(c.v),
+        }));
+      }
+    });
+
+    COINS.forEach(drawChart);
+
+    dot.classList.remove("loading");
+    dot.classList.remove("error");
+    document.getElementById("updateTime").textContent =
+      new Date().toLocaleTimeString("en", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+
+    // Hide loading overlay
+    document.getElementById("loadingOverlay").classList.add("hidden");
+
+  } catch (err) {
+    console.error("Fetch error:", err);
+    dot.classList.remove("loading");
+    dot.classList.add("error");
+    document.getElementById("loadingOverlay").innerHTML = `
+      <div style="color:var(--red);font-size:14px;font-weight:600">Connection failed</div>
+      <div style="color:var(--text);font-size:12px;max-width:360px;text-align:center">${err.message}</div>
+      <button class="refresh-btn" onclick="fetchAll()" style="margin-top:8px;padding:8px 20px">Retry</button>
+    `;
+  }
+}
+
+// --- Resize ---
+let resizeTimer;
+window.addEventListener("resize", () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => COINS.forEach(drawChart), 80);
+});
+
+// --- Init ---
+fetchAll();
+setInterval(fetchAll, 60000);
+</script>
+</body>
+</html>
