@@ -114,7 +114,41 @@
     gap: 1px;
     background: var(--border);
     min-height: 0;
+    position: relative;
   }
+
+  .panel.fullscreen {
+    position: absolute;
+    inset: 0;
+    z-index: 10;
+  }
+  .panel.hide { display: none !important; }
+
+  .expand-btn {
+    background: transparent;
+    border: none;
+    color: var(--text);
+    cursor: pointer;
+    font-size: 11px;
+    padding: 0 2px;
+    line-height: 1;
+    font-family: inherit;
+    transition: color 0.15s;
+  }
+  .expand-btn:hover { color: var(--white); }
+
+  .tz-select {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-mid);
+    padding: 3px 6px;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 10px;
+    font-family: inherit;
+    outline: none;
+  }
+  .tz-select option { background: #1a1f2e; color: var(--white); }
 
   .panel {
     background: var(--panel);
@@ -247,6 +281,15 @@
   </div>
   <div class="topbar-right">
     <span class="time" id="updateTime">—</span>
+    <select class="tz-select" onchange="onTZChange(this.value)" title="Timezone">
+      <option value="">Auto</option>
+      <option value="America/Lima">Lima (UTC-5)</option>
+      <option value="Europe/Madrid">Madrid</option>
+      <option value="Asia/Singapore">Singapore</option>
+      <option value="Asia/Kolkata">India</option>
+      <option value="Asia/Tokyo">Tokyo</option>
+      <option value="UTC">UTC</option>
+    </select>
     <button class="refresh-btn" onclick="fetchAll()">↻ REFRESH</button>
   </div>
 </div>
@@ -261,6 +304,8 @@ const data = {};
 const canvases = {};
 const crosshairInfos = {};
 const panels = {};
+let selectedTZ = Intl.DateTimeFormat().resolvedOptions().timeZone;
+let expandedCoin = null;
 
 // --- Formatting ---
 function fmtPrice(p, coin) {
@@ -285,6 +330,16 @@ function fmtVol(v) {
   return v.toFixed(0);
 }
 
+function getDateParts(ts) {
+  const fmt = new Intl.DateTimeFormat("en-US", {
+    timeZone: selectedTZ,
+    month: "short", day: "2-digit", year: "2-digit",
+    hour: "2-digit", minute: "2-digit", hour12: false,
+  });
+  const p = Object.fromEntries(fmt.formatToParts(new Date(ts)).map(x => [x.type, x.value]));
+  return { mo: p.month, day: p.day, yr: p.year, hh: p.hour === "24" ? "00" : p.hour, mn: p.minute };
+}
+
 // --- Build DOM ---
 const grid = document.getElementById("grid");
 
@@ -297,6 +352,7 @@ COINS.forEach(coin => {
       <span class="coin-price" id="price-${coin}">—</span>
       <span class="coin-change up" id="change-${coin}">▲ 0.00%</span>
       <span class="coin-meta">1H · Hyperliquid</span>
+      <button class="expand-btn" onclick="toggleExpand('${coin}')" title="Fullscreen">⛶</button>
     </div>
     <div class="crosshair-info" id="ci-${coin}">
       <span class="ci-o" id="ci-o-${coin}"></span>
@@ -441,9 +497,7 @@ function drawChart(coin) {
     ctx.moveTo(x, chartT);
     ctx.lineTo(x, volB);
     ctx.stroke();
-    const d = new Date(candles[i].t);
-    const mo = d.toLocaleString("en", { month: "short" });
-    const day = d.getDate();
+    const { mo, day } = getDateParts(candles[i].t);
     ctx.fillText(`${mo} ${day}`, x, h - pB + 5);
   }
 
@@ -543,12 +597,7 @@ function drawChart(coin) {
     ctx.strokeRect(Math.round(x - 0.5 - cw/2) - 1, bTop - 1, Math.round(cw) + 2, bH + 2);
 
     // Date label below x-axis
-    const d = new Date(hc.t);
-    const mo = d.toLocaleString("en", { month: "short" });
-    const day = String(d.getDate()).padStart(2, "0");
-    const yr = String(d.getFullYear()).slice(-2);
-    const hh = String(d.getHours()).padStart(2, "0");
-    const mn = String(d.getMinutes()).padStart(2, "0");
+    const { mo, day, yr, hh, mn } = getDateParts(hc.t);
     const dateLabel = `${day} ${mo} '${yr} ${hh}:${mn}`;
     ctx.font = "9px 'JetBrains Mono', monospace";
     const dlW = ctx.measureText(dateLabel).width + 12;
@@ -682,6 +731,32 @@ async function fetchAll() {
     `;
   }
 }
+
+// --- Timezone ---
+function onTZChange(val) {
+  selectedTZ = val || Intl.DateTimeFormat().resolvedOptions().timeZone;
+  COINS.forEach(drawChart);
+}
+
+// --- Expand panel ---
+function toggleExpand(coin) {
+  if (expandedCoin === coin) {
+    expandedCoin = null;
+    COINS.forEach(c => panels[c].classList.remove("fullscreen", "hide"));
+    setTimeout(() => COINS.forEach(drawChart), 50);
+  } else {
+    expandedCoin = coin;
+    COINS.forEach(c => {
+      panels[c].classList.toggle("fullscreen", c === coin);
+      panels[c].classList.toggle("hide", c !== coin);
+    });
+    setTimeout(() => drawChart(coin), 50);
+  }
+}
+
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape" && expandedCoin) toggleExpand(expandedCoin);
+});
 
 // --- Resize ---
 let resizeTimer;
