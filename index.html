@@ -329,6 +329,7 @@ COINS.forEach(coin => {
 // --- Chart state ---
 const chartLayouts = {};
 const hoverIndex = {};
+const hoverY = {};
 
 function getLayout(coin) {
   const { canvas, container } = canvases[coin];
@@ -499,6 +500,7 @@ function drawChart(coin) {
 
   // Crosshair
   const hi = hoverIndex[coin];
+  const hy = hoverY[coin];
   if (hi != null && hi >= 0 && hi < candles.length) {
     const hc = candles[hi];
     const x = Math.round(chartL + (hi + 0.5) * spacing) + 0.5;
@@ -512,6 +514,15 @@ function drawChart(coin) {
     ctx.moveTo(x, chartT);
     ctx.lineTo(x, volB);
     ctx.stroke();
+
+    // Horizontal line (price area only)
+    if (hy != null && hy >= chartT && hy <= chartB) {
+      ctx.beginPath();
+      ctx.moveTo(chartL, hy);
+      ctx.lineTo(chartR, hy);
+      ctx.stroke();
+    }
+
     ctx.setLineDash([]);
 
     // Highlight candle body
@@ -522,6 +533,46 @@ function drawChart(coin) {
     const bBot = yOf(Math.min(hc.o, hc.c));
     const bH = Math.max(1, bBot - bTop);
     ctx.strokeRect(Math.round(x - 0.5 - cw/2) - 1, bTop - 1, Math.round(cw) + 2, bH + 2);
+
+    // Date label below x-axis
+    const d = new Date(hc.t);
+    const mo = d.toLocaleString("en", { month: "short" });
+    const day = String(d.getDate()).padStart(2, "0");
+    const yr = String(d.getFullYear()).slice(-2);
+    const hh = String(d.getHours()).padStart(2, "0");
+    const mn = String(d.getMinutes()).padStart(2, "0");
+    const dateLabel = `${day} ${mo} '${yr} ${hh}:${mn}`;
+    ctx.font = "9px 'JetBrains Mono', monospace";
+    const dlW = ctx.measureText(dateLabel).width + 12;
+    const dlH = 14;
+    const dlX = Math.min(Math.max(x - dlW / 2, chartL), chartR - dlW);
+    const dlY = h - pB + 3;
+    ctx.fillStyle = "#1a2336";
+    ctx.beginPath();
+    ctx.roundRect(dlX, dlY, dlW, dlH, 2);
+    ctx.fill();
+    ctx.fillStyle = "#e8edf4";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(dateLabel, dlX + dlW / 2, dlY + dlH / 2);
+
+    // Price label on right y-axis
+    if (hy != null && hy >= chartT && hy <= chartB) {
+      const hoverPrice = pMin + (1 - (hy - chartT) / chartH) * (pMax - pMin);
+      const priceLabel = fmtAxis(hoverPrice, coin);
+      const tagW = pR - 6;
+      const tagH = 16;
+      const tagX = chartR + 3;
+      ctx.fillStyle = "#2a3550";
+      ctx.beginPath();
+      ctx.roundRect(tagX, hy - tagH / 2, tagW, tagH, 2);
+      ctx.fill();
+      ctx.fillStyle = "#e8edf4";
+      ctx.font = "bold 9.5px 'JetBrains Mono', monospace";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(priceLabel, tagX + tagW / 2, hy);
+    }
   }
 
   // Update header
@@ -540,12 +591,14 @@ function onMouseMove(coin, e) {
   if (!layout) return;
   const rect = canvases[coin].container.getBoundingClientRect();
   const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
   const idx = Math.floor((mx - layout.chartL) / layout.spacing);
   if (idx < 0 || idx >= layout.candles.length) {
     onMouseLeave(coin);
     return;
   }
   hoverIndex[coin] = idx;
+  hoverY[coin] = my;
   drawChart(coin);
 
   const c = layout.candles[idx];
@@ -559,6 +612,7 @@ function onMouseMove(coin, e) {
 
 function onMouseLeave(coin) {
   hoverIndex[coin] = null;
+  hoverY[coin] = null;
   drawChart(coin);
   crosshairInfos[coin].el.classList.remove("visible");
 }
