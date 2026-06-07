@@ -483,19 +483,20 @@ function drawChart(coin) {
     ctx.setLineDash([]);
 
     // Price tag
-    const tagW = pR - 6;
     const tagH = 16;
-    const tagX = chartR + 3;
+    ctx.font = "bold 9.5px 'JetBrains Mono', monospace";
+    const priceStr = fmtPrice(last.c, coin);
+    const tagW = Math.max(pR - 6, ctx.measureText(priceStr).width + 12);
+    const tagX = w - tagW - 3;
     const tagY = yLast - tagH/2;
     ctx.fillStyle = up ? COL.green : COL.red;
     ctx.beginPath();
     ctx.roundRect(tagX, tagY, tagW, tagH, 2);
     ctx.fill();
     ctx.fillStyle = "#fff";
-    ctx.font = "bold 9.5px 'JetBrains Mono', monospace";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillText(fmtAxis(last.c, coin), tagX + tagW/2, yLast);
+    ctx.fillText(priceStr, tagX + tagW/2, yLast);
   }
 
   // Crosshair
@@ -559,16 +560,16 @@ function drawChart(coin) {
     // Price label on right y-axis
     if (hy != null && hy >= chartT && hy <= chartB) {
       const hoverPrice = pMin + (1 - (hy - chartT) / chartH) * (pMax - pMin);
-      const priceLabel = fmtAxis(hoverPrice, coin);
-      const tagW = pR - 6;
+      const priceLabel = fmtPrice(hoverPrice, coin);
       const tagH = 16;
-      const tagX = chartR + 3;
+      ctx.font = "bold 9.5px 'JetBrains Mono', monospace";
+      const tagW = Math.max(pR - 6, ctx.measureText(priceLabel).width + 12);
+      const tagX = w - tagW - 3;
       ctx.fillStyle = "#2a3550";
       ctx.beginPath();
       ctx.roundRect(tagX, hy - tagH / 2, tagW, tagH, 2);
       ctx.fill();
       ctx.fillStyle = "#e8edf4";
-      ctx.font = "bold 9.5px 'JetBrains Mono', monospace";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.fillText(priceLabel, tagX + tagW / 2, hy);
